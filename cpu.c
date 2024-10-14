@@ -287,9 +287,11 @@ void cpu_cycle(CHIP8 *p_cpu)
                 case 0x0A: // 0xFx0A (LD) Wait for a key press, store the value of the key in Vx.
                     if(255 != p_cpu->key_held)
                     {
+                        // Only stop halting when key is released.
                         if(!(p_cpu->keypad_register & (1 << p_cpu->key_held))) 
                         {
                            p_cpu->V[opcode.x] = p_cpu->key_held;
+                           // Reset key held flag
                            p_cpu->key_held = 255;
                            break;
                         }
@@ -298,7 +300,6 @@ void cpu_cycle(CHIP8 *p_cpu)
                     {
                         for(uint8_t i = 0; i <= 0xF; i++)
                         {
-                            printf("i: %d", i);
                             if(p_cpu->keypad_register & (1 << i))
                             {
                                 p_cpu->key_held = i;
