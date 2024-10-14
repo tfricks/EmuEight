@@ -3,8 +3,41 @@
 
 #include "cpu.h"
 
-#define SCREEN_WIDTH DISPLAY_W * 10
-#define SCREEN_HEIGHT DISPLAY_H * 10
+#define SCREEN_WIDTH DISPLAY_W * 20
+#define SCREEN_HEIGHT DISPLAY_H * 20
+
+const static uint8_t KEYMAP[16] = {
+    SDL_SCANCODE_X, // 0
+    SDL_SCANCODE_1, // 1
+    SDL_SCANCODE_2, // 2
+    SDL_SCANCODE_3, // 3
+    SDL_SCANCODE_Q, // 4
+    SDL_SCANCODE_W, // 5
+    SDL_SCANCODE_E, // 6
+    SDL_SCANCODE_A, // 7
+    SDL_SCANCODE_S, // 8
+    SDL_SCANCODE_D, // 9
+    SDL_SCANCODE_Z, // A
+    SDL_SCANCODE_C, // B
+    SDL_SCANCODE_4, // C
+    SDL_SCANCODE_R, // D
+    SDL_SCANCODE_F, // E
+    SDL_SCANCODE_V  // F
+};
+
+// maybe do better here
+int8_t get_index_from_scancode(uint8_t scancode)
+{
+    // Iterate through the KEYMAP array to find the matching scancode
+    for (uint8_t i = 0; i < 16; i++)
+	{
+        if (KEYMAP[i] == scancode)
+		{
+            return i; // Return the index if found
+        }
+    }
+    return -1; // Return -1 if scancode not found
+}
 
 void update_display(SDL_Texture *p_tex, SDL_Renderer *p_ren, void *p_vram, int pitch) 
 {
@@ -37,7 +70,6 @@ int main(int argc, char *argv[]){
 
     SDL_Texture *tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, DISPLAY_W, DISPLAY_H);
 
-    //SDL_RenderSetLogicalSize(ren, 64, 32);
     SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
 
 	int videoPitch = sizeof(uint32_t) * DISPLAY_W;
@@ -51,30 +83,61 @@ int main(int argc, char *argv[]){
 		printf("Failed to load program.");
 	}
 
+	uint64_t last_cycle_time = SDL_GetTicks64();
+	uint64_t last_display_time = SDL_GetTicks64();
+
     // Keep the main loop until the window is closed (SDL_QUIT event)
     bool exit = false;
     SDL_Event eventData;
     while (!exit)
     {
-		cpu_cycle(p_cpu);
-		update_display(tex, ren, p_cpu->vram, videoPitch);
+		uint64_t current_time = SDL_GetTicks64();
+		uint8_t scancode = 0;
+		int8_t index = 0;
+		if(current_time - last_cycle_time >= 2)
+		{
+			cpu_cycle(p_cpu);
+			cpu_cycle(p_cpu);
+			last_cycle_time = SDL_GetTicks();
+		}
+		if(current_time - last_display_time > 17)
+		{
+			if(p_cpu->delayTimer > 0)
+			{
+				p_cpu->delayTimer--;
+			}
+			if(p_cpu->soundTimer > 0)
+			{
+				p_cpu->soundTimer--;
+			}
+			update_display(tex, ren, p_cpu->vram, videoPitch);
+			p_cpu->display_wait = false;
+			last_display_time = SDL_GetTicks64();
+		}
         while (SDL_PollEvent(&eventData))
         {
             switch (eventData.type)
             {
-            case SDL_QUIT:
-                exit = true;
-                break;
+				case SDL_QUIT:
+					exit = true;
+					break;
+				case SDL_KEYDOWN:
+            		index = get_index_from_scancode(eventData.key.keysym.scancode);
+            		if (index != -1) 
+					{
+                		p_cpu->keypad_register |= 1 << index;
+					}
+					break;
+				case SDL_KEYUP:
+					index = get_index_from_scancode(eventData.key.keysym.scancode);
+            		if (index != -1) 
+					{
+                		p_cpu->keypad_register &= ~(1 << index);
+					}
+					break;
             }
         }
     }
-
-	//for(int i = 0; i < SCREEN_HEIGHT; i++) {
-//		for(int j = 0; j < SCREEN_WIDTH; j++) {
-//			printf("%d ", ((p_cpu->vram[i+j] & 0xFFFFFFFF) && 1));
-//		}
-//		printf("\n");
-//	}
 
 	free(p_cpu);
 	p_cpu = NULL;

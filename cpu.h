@@ -52,6 +52,8 @@ typedef struct CHIP8_S
     uint8_t delayTimer;
     uint8_t soundTimer;
     uint32_t vram[DISPLAY_H * DISPLAY_W];
+    uint8_t key_held;
+    bool display_wait;
 } CHIP8;
 
 CHIP8 *cpu_init(void);

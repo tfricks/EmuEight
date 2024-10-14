@@ -43,6 +43,9 @@ CHIP8 *cpu_init(void)
     // set the program counter
     p_cpu->pc = START_ADDRESS;
 
+    // set current key held to none
+    p_cpu->key_held = 255;
+
     srand(time(NULL));
 
     // Caller is responsible for freeing.
@@ -98,8 +101,6 @@ void cpu_cycle(CHIP8 *p_cpu)
     uint8_t x = 0;
     uint8_t y = 0;
     uint8_t carry = false;
-    if(p_cpu->delayTimer > 0)
-        p_cpu->delayTimer--;
 
     // Fetch 
     opcode.code = p_cpu->memory[p_cpu->pc] << 8 | p_cpu->memory[p_cpu->pc + 1];
@@ -162,12 +163,18 @@ void cpu_cycle(CHIP8 *p_cpu)
                     break;
                 case 0x1: // 0x8xy1 (OR) Set Vx = Vx OR Vy.
                     p_cpu->V[opcode.x] = p_cpu->V[opcode.x] | p_cpu->V[opcode.y];
+                    // TODO: Make quirk configurable
+                    p_cpu->V[0xF] = 0;
                     break;
                 case 0x2: // 0x8xy2 (AND) Set Vx = Vx AND Vy.
                     p_cpu->V[opcode.x] = p_cpu->V[opcode.x] & p_cpu->V[opcode.y];
+                    // TODO: Make quirk configurable
+                    p_cpu->V[0xF] = 0;
                     break;
                 case 0x3: // 0x8xy3 (XOR) Set Vx = Vx XOR Vy.
                     p_cpu->V[opcode.x] = p_cpu->V[opcode.x] ^ p_cpu->V[opcode.y];
+                    // TODO: Make quirk configurable
+                    p_cpu->V[0xF] = 0;
                     break;
                 case 0x4: // 0x8xy4 (ADD) Set Vx = Vx + Vy. Set VF = carry.
                     carry = (p_cpu->V[opcode.y] > UCHAR_MAX - p_cpu->V[opcode.x]);
@@ -181,8 +188,8 @@ void cpu_cycle(CHIP8 *p_cpu)
                     break;
                 case 0x6: // 0x8xy6 (SHR) Set Vx = Vx SHR 1.
                     // TODO: Make quirk configurable
-                    carry = p_cpu->V[opcode.x] & 0x1;
-                    p_cpu->V[opcode.x] >>= 1;
+                    carry = p_cpu->V[opcode.y] & 0x1;
+                    p_cpu->V[opcode.x] = p_cpu->V[opcode.y] >> 1;
                     p_cpu->V[0xF] = carry;
                     break;
                 case 0x7: // 0x8xy7 (SUBN) Set Vx = Vy - Vx, set VF = NOT borrow.
@@ -192,8 +199,8 @@ void cpu_cycle(CHIP8 *p_cpu)
                     break;
                 case 0xE: // 0x8xyE (SHL) Set Vx = Vx SHL 1.
                     // TODO: Make quirk configurable
-                    carry = (p_cpu->V[opcode.x]) >> 7;
-                    p_cpu->V[opcode.x] <<= 1;
+                    carry = (p_cpu->V[opcode.y]) >> 7;
+                    p_cpu->V[opcode.x] = p_cpu->V[opcode.y] << 1;
                     p_cpu->V[0xF] = carry;
                     break;
                 default:
@@ -216,16 +223,29 @@ void cpu_cycle(CHIP8 *p_cpu)
             p_cpu->V[opcode.x] = ((uint8_t)(rand() % 255)) & opcode.kk;
             break;
         case 0xD: // 0xDxyn (DRW) Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision.
+            // TODO: Make quirk configurable
+            if(p_cpu->display_wait)
+            {
+                p_cpu->pc -= 2;
+                break;
+            }
             // wrap around screen
             x = p_cpu->V[opcode.x] & (DISPLAY_W - 1);
             y = p_cpu->V[opcode.y] & (DISPLAY_H - 1);
             p_cpu->V[0xF] = 0;
             for(uint8_t i = 0; i < opcode.n; i++)
             {
+                if(y + i == DISPLAY_H) {
+                    break;
+                }
                 uint8_t sprite_byte = p_cpu->memory[p_cpu->index + i];
                 for(uint8_t j = 0; j < 8; j++)
                 {
-                    if(sprite_byte & (0x80u >> j))
+                    if(x + j == DISPLAY_W)
+                    {
+                        break;
+                    }
+                    if(sprite_byte & (0x80 >> j))
                     {
                         uint32_t *p_pixel = &p_cpu->vram[(((y + i) * DISPLAY_W) + (x + j))];
                         if(*p_pixel) 
@@ -237,6 +257,26 @@ void cpu_cycle(CHIP8 *p_cpu)
                     }
                 }
             }
+            p_cpu->display_wait = true;
+            break;
+        case 0xE:
+            switch (opcode.kk)
+            {
+                case 0x9E: // 0xEx9E (SNP) Skip next instruction if key with the value of Vx is pressed.
+                    if(p_cpu->keypad_register & (1 << p_cpu->V[opcode.x]))
+                    {
+                        p_cpu->pc += 2;
+                    }
+                    break;
+                case 0xA1: // 0xEx9E (SKNP) Skip next instruction if key with the value of Vx is not pressed.
+                    if(!(p_cpu->keypad_register & (1 << p_cpu->V[opcode.x])))
+                    {
+                        p_cpu->pc += 2;
+                    }
+                    break;
+                default:
+                    break;
+            }
             break;
         case 0xF:
             switch(opcode.kk) 
@@ -245,7 +285,29 @@ void cpu_cycle(CHIP8 *p_cpu)
                     p_cpu->V[opcode.x] = p_cpu->delayTimer;
                     break;
                 case 0x0A: // 0xFx0A (LD) Wait for a key press, store the value of the key in Vx.
-                    // TODO: Implement
+                    if(255 != p_cpu->key_held)
+                    {
+                        if(!(p_cpu->keypad_register & (1 << p_cpu->key_held))) 
+                        {
+                           p_cpu->V[opcode.x] = p_cpu->key_held;
+                           p_cpu->key_held = 255;
+                           break;
+                        }
+                    }
+                    else if (0 != p_cpu->keypad_register)
+                    {
+                        for(uint8_t i = 0; i <= 0xF; i++)
+                        {
+                            printf("i: %d", i);
+                            if(p_cpu->keypad_register & (1 << i))
+                            {
+                                p_cpu->key_held = i;
+                                break;
+                            }
+                        }
+                    }
+                    // Wait without blocking
+                    p_cpu->pc -= 2;
                     break;
                 case 0x15: // 0xFx15 (LD) Set delay timer = Vx.
                     p_cpu->delayTimer = p_cpu->V[opcode.x];
@@ -269,12 +331,16 @@ void cpu_cycle(CHIP8 *p_cpu)
                     {
                         p_cpu->memory[p_cpu->index + i] = p_cpu->V[i];
                     }
+                    // TODO: Make quirk configurable
+                    p_cpu->index += opcode.x+1;
                     break;
                 case 0x65: // 0xFx65 (LD) Read registers V0 through Vx from memory starting at location I.
                     for(uint8_t i = 0; i <= opcode.x; i++)
                     {
                         p_cpu->V[i] = p_cpu->memory[p_cpu->index + i];
                     }
+                    // TODO: Make quirk configurable
+                    p_cpu->index += opcode.x+1;
                     break;
                 default:
                     break;
