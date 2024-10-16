@@ -51,3 +51,9 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# Mac OS trash
+.DS_Store
+
+# Editors
+.vscode

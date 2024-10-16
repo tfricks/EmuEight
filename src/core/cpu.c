@@ -22,9 +22,9 @@ static uint8_t font_sprites[FONT_SPRITES_SIZE] =
 	0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 };
 
-CHIP8 *cpu_init(void) 
+chip8_t *cpu_init(void) 
 {
-    CHIP8 *p_cpu = NULL;
+    chip8_t *p_cpu = NULL;
 
     p_cpu = malloc(sizeof(*p_cpu));
 
@@ -52,7 +52,7 @@ CHIP8 *cpu_init(void)
     return p_cpu;
 }
 
-bool cpu_load_program(CHIP8 *p_cpu, char *p_filename)
+bool cpu_load_program(chip8_t *p_cpu, char *p_filename)
 {
     FILE *pg_fp;
     size_t pg_size = 0;
@@ -95,9 +95,9 @@ bool cpu_load_program(CHIP8 *p_cpu, char *p_filename)
     return true;
 }
 
-void cpu_cycle(CHIP8 *p_cpu)
+void cpu_cycle(chip8_t *p_cpu)
 {
-    OPCODE opcode;
+    opcode_t opcode;
     uint8_t x = 0;
     uint8_t y = 0;
     uint8_t carry = false;

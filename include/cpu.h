@@ -19,7 +19,7 @@
 #define FONT_ADDRESS 0
 #define FONT_BYTES 5
 
-typedef union OPCODE_U 
+typedef union opcode 
 {
     uint16_t code;
     struct
@@ -37,10 +37,10 @@ typedef union OPCODE_U
         uint8_t x : 4;
         uint8_t op : 4;
     };
-} OPCODE;
+} opcode_t;
 
 
-typedef struct CHIP8_S
+typedef struct chip8
 {
     uint8_t V[NUM_REGISTERS]; // V registers
     uint8_t memory[MEMORY_SIZE];
@@ -54,10 +54,10 @@ typedef struct CHIP8_S
     uint32_t vram[DISPLAY_H * DISPLAY_W];
     uint8_t key_held;
     bool display_wait;
-} CHIP8;
+} chip8_t;
 
-CHIP8 *cpu_init(void);
-bool cpu_load_program(CHIP8 *p_cpu, char *p_filename);
-void cpu_cycle(CHIP8 *p_cpu);
+chip8_t *cpu_init(void);
+bool cpu_load_program(chip8_t *p_cpu, char *p_filename);
+void cpu_cycle(chip8_t *p_cpu);
 
 #endif // CPU_H_

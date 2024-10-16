@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <SDL.h>
+#include <SDL2/SDL.h>
 
 #include "cpu.h"
 
@@ -74,7 +74,7 @@ int main(int argc, char *argv[]){
 
 	int videoPitch = sizeof(uint32_t) * DISPLAY_W;
 
-	CHIP8 *p_cpu = cpu_init();
+	chip8_t *p_cpu = cpu_init();
 
 	
 
