@@ -142,7 +142,7 @@ void cpu_cycle(chip8_t *p_cpu)
     // Fetch 
     opcode = cpu_decode_opcode((uint16_t)(p_cpu->memory[p_cpu->pc] << 8u | p_cpu->memory[p_cpu->pc + 1u]));
     
-    p_cpu->pc+=2;
+    p_cpu->pc += (uint16_t) 2;
 
     // Decode and execute
     switch (opcode.op)
@@ -172,19 +172,19 @@ void cpu_cycle(chip8_t *p_cpu)
         case 0x3: // 0x3xnn (SE) Skip next instruction if Vx = nn;
             if(opcode.nn == p_cpu->V[opcode.x])
             {
-                p_cpu->pc += 2;
+                p_cpu->pc += (uint16_t)2;
             }
             break;
         case 0x4: // 0x4xnn (SNE) Skip next instruction if Vx != nn;
             if(opcode.nn != p_cpu->V[opcode.x])
             {
-                p_cpu->pc += 2;
+                p_cpu->pc += (uint16_t)2;
             }
             break;
         case 0x5: // 0x5xy0 (SE) Skip next instruction if Vx = Vy;
             if(p_cpu->V[opcode.x] == p_cpu->V[opcode.y])
             {
-                p_cpu->pc += 2;
+                p_cpu->pc += (uint16_t)2;
             }
             break;
         case 0x6: // 0x6xnn (LD) Set Vx = nn.
