@@ -1,11 +1,9 @@
 #ifndef CPU_H_   
 #define CPU_H_
 
-#include <stdint.h>
-#include <stdlib.h>
 #include <stdbool.h>
-#include <stdio.h>
-#include <string.h>
+#include <stdint.h>
+
 
 #define START_ADDRESS 0x200
 
@@ -19,24 +17,15 @@
 #define FONT_ADDRESS 0
 #define FONT_BYTES 5
 
-typedef union opcode 
+typedef struct opcode 
 {
     uint16_t code;
-    struct
-    {
-        uint16_t nnn : 12;
-    };
-    struct
-    {
-        uint8_t kk : 8;
-    };
-    struct 
-    {
-        uint8_t n : 4;
-        uint8_t y : 4;
-        uint8_t x : 4;
-        uint8_t op : 4;
-    };
+    uint16_t nnn;
+    uint8_t nn;
+    uint8_t n;
+    uint8_t y;
+    uint8_t x;
+    uint8_t op;
 } opcode_t;
 
 
@@ -57,6 +46,7 @@ typedef struct chip8
 } chip8_t;
 
 chip8_t *cpu_init(void);
+bool cpu_reset(chip8_t *p_cpu);
 bool cpu_load_program(chip8_t *p_cpu, char *p_filename);
 void cpu_cycle(chip8_t *p_cpu);
 

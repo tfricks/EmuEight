@@ -57,3 +57,7 @@ dkms.conf
 
 # Editors
 .vscode
+.idea
+
+# clangd
+.cache

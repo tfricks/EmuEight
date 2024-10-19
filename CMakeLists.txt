@@ -1,6 +1,9 @@
-cmake_minimum_required(VERSION 3.5.0)
+cmake_minimum_required(VERSION 3.7)
 project(EmuEight VERSION 0.1.0 LANGUAGES C)
 
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdl2)
+include(CTest)
 
 add_subdirectory(src)
+add_subdirectory(platform)
+add_subdirectory(external)
+add_subdirectory(test)

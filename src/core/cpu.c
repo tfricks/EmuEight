@@ -1,5 +1,9 @@
 #include <limits.h>
+#include <stdbool.h>
+#include <stdlib.h>
 #include <time.h>
+#include <stdio.h>
+#include <string.h>
 #include "cpu.h"
 
 static uint8_t font_sprites[FONT_SPRITES_SIZE] =
@@ -22,7 +26,24 @@ static uint8_t font_sprites[FONT_SPRITES_SIZE] =
 	0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 };
 
-chip8_t *cpu_init(void) 
+opcode_t cpu_decode_opcode(uint16_t opcode)
+{
+    opcode_t decoded_opcode;
+    decoded_opcode.code = opcode;
+    decoded_opcode.op = (uint8_t)((opcode & 0xF000) >> 12);
+    decoded_opcode.x = (uint8_t)((opcode & 0x0F00) >> 8);
+    decoded_opcode.y = (uint8_t)((opcode & 0x00F0) >> 4);
+    decoded_opcode.n = (uint8_t)(opcode & 0x000F);
+    decoded_opcode.nn = (uint8_t)(opcode & 0x00FF);
+    decoded_opcode.nnn = (uint16_t)(opcode & 0x0FFF);
+    return decoded_opcode;
+}
+
+/**
+ * 
+ * @return chip8_t*
+ */
+chip8_t *cpu_init(void)
 {
     chip8_t *p_cpu = NULL;
 
@@ -33,20 +54,15 @@ chip8_t *cpu_init(void)
         // couldn't allocate memory
         return NULL;
     }
-    
-    // clear the memory
-    memset(p_cpu, 0, sizeof(*p_cpu));
 
-    // load font sprites into memory at address 0x00
-    memcpy(p_cpu->memory, &font_sprites, FONT_SPRITES_SIZE);
-    
-    // set the program counter
-    p_cpu->pc = START_ADDRESS;
+    srand((uint16_t)time(NULL));
 
-    // set current key held to none
-    p_cpu->key_held = 255;
-
-    srand(time(NULL));
+    if(!cpu_reset(p_cpu)) 
+    {
+        // failed to reset cpu
+        free(p_cpu);
+        return NULL;
+    }
 
     // Caller is responsible for freeing.
     return p_cpu;
@@ -56,7 +72,7 @@ bool cpu_load_program(chip8_t *p_cpu, char *p_filename)
 {
     FILE *pg_fp;
     size_t pg_size = 0;
-    size_t ret_size = 0;
+    long ret_size = 0;
 
     if(NULL == p_filename) 
     {
@@ -76,17 +92,15 @@ bool cpu_load_program(chip8_t *p_cpu, char *p_filename)
     ret_size = ftell(pg_fp);
     fseek(pg_fp, 0, SEEK_SET);
 
-    if(ret_size >= PROGRAM_MEMORY_SIZE) 
+    if(-1 != ret_size && ret_size >= PROGRAM_MEMORY_SIZE) 
     {
         return false;
     }
 
     // Read file into memory
-    pg_size = fread(p_cpu->memory + START_ADDRESS, sizeof(p_cpu->memory[0]), ret_size, pg_fp);
-    if(pg_size != ret_size) 
+    pg_size = fread(p_cpu->memory + START_ADDRESS, sizeof(p_cpu->memory[0]), (size_t)ret_size, pg_fp);
+    if(pg_size != (size_t)ret_size) 
     {
-        printf("read error");
-        // Some manner of file read error
         return false;
     }
 
@@ -95,22 +109,46 @@ bool cpu_load_program(chip8_t *p_cpu, char *p_filename)
     return true;
 }
 
+bool cpu_reset(chip8_t *p_cpu)
+{
+    if(NULL == p_cpu) 
+    {
+        return false;
+    }
+
+    // clear the memory
+    memset(p_cpu, 0, sizeof(*p_cpu));
+
+    // load font sprites into memory at address 0x00
+    memcpy(p_cpu->memory, &font_sprites, FONT_SPRITES_SIZE);
+    
+    // set the program counter
+    p_cpu->pc = START_ADDRESS;
+
+    // set current key held to none
+    p_cpu->key_held = 255;
+
+
+    return true;
+}
+
 void cpu_cycle(chip8_t *p_cpu)
 {
     opcode_t opcode;
-    uint8_t x = 0;
-    uint8_t y = 0;
+    uint8_t col = 0;
+    uint8_t row = 0;
     uint8_t carry = false;
 
     // Fetch 
-    opcode.code = p_cpu->memory[p_cpu->pc] << 8 | p_cpu->memory[p_cpu->pc + 1];
+    opcode = cpu_decode_opcode((uint16_t)(p_cpu->memory[p_cpu->pc] << 8u | p_cpu->memory[p_cpu->pc + 1u]));
+    
     p_cpu->pc+=2;
 
     // Decode and execute
     switch (opcode.op)
     {
         case 0x0:
-            switch (opcode.kk)
+            switch (opcode.nn)
             {
                 case 0xE0: // 0x00E0 (CLS) Clear the display
                     memset(p_cpu->vram, 0, sizeof(p_cpu->vram));
@@ -131,14 +169,14 @@ void cpu_cycle(chip8_t *p_cpu)
             p_cpu->sp++;
             p_cpu->pc = opcode.nnn;
             break;
-        case 0x3: // 0x3xkk (SE) Skip next instruction if Vx = kk;
-            if(opcode.kk == p_cpu->V[opcode.x])
+        case 0x3: // 0x3xnn (SE) Skip next instruction if Vx = nn;
+            if(opcode.nn == p_cpu->V[opcode.x])
             {
                 p_cpu->pc += 2;
             }
             break;
-        case 0x4: // 0x4xkk (SNE) Skip next instruction if Vx != kk;
-            if(opcode.kk != p_cpu->V[opcode.x])
+        case 0x4: // 0x4xnn (SNE) Skip next instruction if Vx != nn;
+            if(opcode.nn != p_cpu->V[opcode.x])
             {
                 p_cpu->pc += 2;
             }
@@ -149,11 +187,11 @@ void cpu_cycle(chip8_t *p_cpu)
                 p_cpu->pc += 2;
             }
             break;
-        case 0x6: // 0x6xkk (LD) Set Vx = kk.
-            p_cpu->V[opcode.x] = opcode.kk;
+        case 0x6: // 0x6xnn (LD) Set Vx = nn.
+            p_cpu->V[opcode.x] = opcode.nn;
             break;
-        case 0x7: // 0x7xkk (ADD) Set Vx = Vx + kk.
-            p_cpu->V[opcode.x] += opcode.kk;
+        case 0x7: // 0x7xnn (ADD) Set Vx = Vx + nn.
+            p_cpu->V[opcode.x] += opcode.nn;
             break;
         case 0x8:
             switch (opcode.n)
@@ -186,7 +224,7 @@ void cpu_cycle(chip8_t *p_cpu)
                     p_cpu->V[opcode.x] -= p_cpu->V[opcode.y];
                     p_cpu->V[0xF] = carry;
                     break;
-                case 0x6: // 0x8xy6 (SHR) Set Vx = Vx SHR 1.
+                case 0x6: // 0x8xy6 (SHR) Set Vx = Vy SHR 1.
                     // TODO: Make quirk configurable
                     carry = p_cpu->V[opcode.y] & 0x1;
                     p_cpu->V[opcode.x] = p_cpu->V[opcode.y] >> 1;
@@ -200,7 +238,7 @@ void cpu_cycle(chip8_t *p_cpu)
                 case 0xE: // 0x8xyE (SHL) Set Vx = Vx SHL 1.
                     // TODO: Make quirk configurable
                     carry = (p_cpu->V[opcode.y]) >> 7;
-                    p_cpu->V[opcode.x] = p_cpu->V[opcode.y] << 1;
+                    p_cpu->V[opcode.x] = (uint8_t)(p_cpu->V[opcode.y] << 1);
                     p_cpu->V[0xF] = carry;
                     break;
                 default:
@@ -219,8 +257,8 @@ void cpu_cycle(chip8_t *p_cpu)
         case 0xB: // 0xBnnn (JP) Jump to location nnn + V0.
             p_cpu->pc = opcode.nnn + p_cpu->V[0x0];
             break;
-        case 0xC: // Set Vx = random byte AND kk
-            p_cpu->V[opcode.x] = ((uint8_t)(rand() % 255)) & opcode.kk;
+        case 0xC: // 0xCxnn (RND) Set Vx = random byte AND nn
+            p_cpu->V[opcode.x] = ((uint8_t)(rand() % 255)) & opcode.nn;
             break;
         case 0xD: // 0xDxyn (DRW) Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision.
             // TODO: Make quirk configurable
@@ -230,24 +268,24 @@ void cpu_cycle(chip8_t *p_cpu)
                 break;
             }
             // wrap around screen
-            x = p_cpu->V[opcode.x] & (DISPLAY_W - 1);
-            y = p_cpu->V[opcode.y] & (DISPLAY_H - 1);
+            col = p_cpu->V[opcode.x] & (DISPLAY_W - 1);
+            row = p_cpu->V[opcode.y] & (DISPLAY_H - 1);
             p_cpu->V[0xF] = 0;
             for(uint8_t i = 0; i < opcode.n; i++)
             {
-                if(y + i == DISPLAY_H) {
+                if(row + i == DISPLAY_H) {
                     break;
                 }
                 uint8_t sprite_byte = p_cpu->memory[p_cpu->index + i];
                 for(uint8_t j = 0; j < 8; j++)
                 {
-                    if(x + j == DISPLAY_W)
+                    if(col + j == DISPLAY_W)
                     {
                         break;
                     }
                     if(sprite_byte & (0x80 >> j))
                     {
-                        uint32_t *p_pixel = &p_cpu->vram[(((y + i) * DISPLAY_W) + (x + j))];
+                        uint32_t *p_pixel = &p_cpu->vram[(((row + i) * DISPLAY_W) + (col + j))];
                         if(*p_pixel) 
                         {
                             // Set collision flag
@@ -260,7 +298,7 @@ void cpu_cycle(chip8_t *p_cpu)
             p_cpu->display_wait = true;
             break;
         case 0xE:
-            switch (opcode.kk)
+            switch (opcode.nn)
             {
                 case 0x9E: // 0xEx9E (SNP) Skip next instruction if key with the value of Vx is pressed.
                     if(p_cpu->keypad_register & (1 << p_cpu->V[opcode.x]))
@@ -268,7 +306,7 @@ void cpu_cycle(chip8_t *p_cpu)
                         p_cpu->pc += 2;
                     }
                     break;
-                case 0xA1: // 0xEx9E (SKNP) Skip next instruction if key with the value of Vx is not pressed.
+                case 0xA1: // 0xExA1 (SKNP) Skip next instruction if key with the value of Vx is not pressed.
                     if(!(p_cpu->keypad_register & (1 << p_cpu->V[opcode.x])))
                     {
                         p_cpu->pc += 2;
@@ -279,7 +317,7 @@ void cpu_cycle(chip8_t *p_cpu)
             }
             break;
         case 0xF:
-            switch(opcode.kk) 
+            switch(opcode.nn) 
             {
                 case 0x07: // 0xFx07 (LD) Set Vx = delay timer value.
                     p_cpu->V[opcode.x] = p_cpu->delayTimer;

@@ -1,3 +1,4 @@
+#include <SDL2/SDL_scancode.h>
 #include <stdio.h>
 #include <SDL2/SDL.h>
 
@@ -6,7 +7,7 @@
 #define SCREEN_WIDTH DISPLAY_W * 20
 #define SCREEN_HEIGHT DISPLAY_H * 20
 
-const static uint8_t KEYMAP[16] = {
+const static SDL_Scancode KEYMAP[16] = {
     SDL_SCANCODE_X, // 0
     SDL_SCANCODE_1, // 1
     SDL_SCANCODE_2, // 2
@@ -26,10 +27,10 @@ const static uint8_t KEYMAP[16] = {
 };
 
 // maybe do better here
-int8_t get_index_from_scancode(uint8_t scancode)
+int8_t get_index_from_scancode(SDL_Scancode scancode)
 {
     // Iterate through the KEYMAP array to find the matching scancode
-    for (uint8_t i = 0; i < 16; i++)
+    for (int8_t i = 0; i < 16; i++)
 	{
         if (KEYMAP[i] == scancode)
 		{
@@ -48,6 +49,8 @@ void update_display(SDL_Texture *p_tex, SDL_Renderer *p_ren, void *p_vram, int p
 }
 
 int main(int argc, char *argv[]){
+
+    (void)argc;
 
     if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
         fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
@@ -92,7 +95,6 @@ int main(int argc, char *argv[]){
     while (!exit)
     {
 		uint64_t current_time = SDL_GetTicks64();
-		uint8_t scancode = 0;
 		int8_t index = 0;
 		if(current_time - last_cycle_time >= 2)
 		{
