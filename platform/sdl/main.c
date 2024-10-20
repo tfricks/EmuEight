@@ -4,8 +4,8 @@
 
 #include "cpu.h"
 
-#define SCREEN_WIDTH DISPLAY_W * 20
-#define SCREEN_HEIGHT DISPLAY_H * 20
+#define SCREEN_WIDTH CHIP8_DISPLAY_W * 20
+#define SCREEN_HEIGHT CHIP8_DISPLAY_H * 20
 
 const static SDL_Scancode KEYMAP[16] = {
     SDL_SCANCODE_X, // 0
@@ -71,17 +71,17 @@ int main(int argc, char *argv[]){
         return EXIT_FAILURE;
     }
 
-    SDL_Texture *tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, DISPLAY_W, DISPLAY_H);
+    SDL_Texture *tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, CHIP8_DISPLAY_W, CHIP8_DISPLAY_H);
 
     SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
 
-	int videoPitch = sizeof(uint32_t) * DISPLAY_W;
+	int videoPitch = sizeof(uint32_t) * CHIP8_DISPLAY_W;
 
 	chip8_t *p_cpu = cpu_init();
 
 	
 
-	if(!cpu_load_program(p_cpu, argv[1])) 
+	if(!cpu_load_program_from_file(p_cpu, argv[1])) 
 	{
 		printf("Failed to load program.");
 	}

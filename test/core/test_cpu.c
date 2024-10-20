@@ -26,7 +26,7 @@ void test_00e0(void)
     p_cpu->memory[p_cpu->pc] = 0x00;
     p_cpu->memory[p_cpu->pc + 1] = 0xE0;
     cpu_cycle(p_cpu);
-    for(int i = 0; i < DISPLAY_H * DISPLAY_W; i++) {
+    for(int i = 0; i < CHIP8_DISPLAY_H * CHIP8_DISPLAY_W; i++) {
         TEST_ASSERT_EQUAL(0, p_cpu->vram[i]);
     }
 }
